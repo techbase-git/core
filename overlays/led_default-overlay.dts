@@ -1,0 +1,60 @@
+/*
+ * Direct-GPIO LED1/LED2/BUZZER — the part of the LED/buzzer wiring NOT
+ * already covered by mcp23008-leds-overlay.dts.
+ *
+ * CM3/CM4S have no MCP23008 for LEDs at all — everything here is direct
+ * GPIO: BUZZER, LED1, LED2. CM4/CM5 already get LED1+BUZZER from
+ * mcp23008-leds; only their LED2 ("green") is direct GPIO, so only that
+ * one is needed here.
+ *
+ *   CM3, CM4S: dtoverlay=led_default,buzzer=27,led1=43,led2=35
+ *   CM4, CM5:  dtoverlay=led_default,led2=27
+ *
+ * Each of buzzer/led1/led2 is disabled by default; giving it a GPIO
+ * number both sets the pin and enables that node (same idiom as the
+ * stock act-led-overlay.dts's "gpio" parameter).
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "brcm,bcm2835";
+
+    fragment@0 {
+        target = <&leds>;
+        __overlay__ {
+            compatible = "gpio-leds";
+
+            buzzer: buzzer {
+                label = "BUZZER";
+                linux,default-trigger = "default-off";
+                gpios = <&gpio 0 0>;
+                status = "disabled";
+            };
+
+            led1: led1 {
+                label = "LED1";
+                linux,default-trigger = "default-off";
+                gpios = <&gpio 0 0>;
+                status = "disabled";
+            };
+
+            led2: led2 {
+                label = "LED2";
+                linux,default-trigger = "default-off";
+                gpios = <&gpio 0 0>;
+                status = "disabled";
+            };
+        };
+    };
+
+    __overrides__ {
+        buzzer = <&buzzer>,"gpios:4",
+                 <&buzzer>,"status=okay";
+        led1   = <&led1>,"gpios:4",
+                 <&led1>,"status=okay";
+        led2   = <&led2>,"gpios:4",
+                 <&led2>,"status=okay";
+    };
+};

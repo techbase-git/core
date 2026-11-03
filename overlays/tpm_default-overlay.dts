@@ -1,0 +1,71 @@
+/*
+ * Infineon SLB9670 TPM 2.0 overlay.
+ *
+ *   CM3, CM4S: dtoverlay=tpm_default          (default: CE0)
+ *   CM4, CM5:  dtoverlay=tpm_default,ce=1
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	/* Enable the SPI0 controller.
+	 *
+	 * Assigning the status unconditionally is safe and idempotent: on a
+	 * base DTB where SPI0 is already enabled this is a no-op, and where it
+	 * is disabled it turns the controller on. The overlay is therefore
+	 * self-contained and does not rely on "dtparam=spi=on" in config.txt.
+	 *
+	 * Pin muxing is deliberately NOT set here. The base DTB already
+	 * provides pinctrl-0, pinctrl-names and cs-gpios for SPI0, and
+	 * referencing a label such as &spi0_pins would add an entry to
+	 * __fixups__ - on any DTB lacking that label the firmware would reject
+	 * this overlay as a whole, silently.
+	 */
+	fragment@0 {
+		target = <&spi0>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	/* Frees chip select 1 — the base DTB's spidev1 node otherwise claims
+	 * it, which would conflict with the TPM on CE1. Dormant by default
+	 * (CE0, the default below, doesn't need this); activated only when
+	 * "ce=1" is passed — see __overrides__.
+	 */
+	fragment@1 {
+		target = <&spidev1>;
+		__dormant__ {
+			status = "disabled";
+		};
+	};
+
+	/* Infineon SLB9670 TPM 2.0 on SPI0. reg defaults to chip select 0
+	 * (CE0); "ce=1" repoints it to CE1 (and activates fragment@1 above).
+	 * 32 MHz is the value shipped by the stock Raspberry Pi overlays;
+	 * the SLB9670 datasheet allows up to 43 MHz.
+	 */
+	fragment@2 {
+		target = <&spi0>;
+		__overlay__ {
+			/* needed to avoid dtc warning */
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			slb9670: slb9670@0 {
+				compatible = "infineon,slb9670";
+				reg = <0>;
+				spi-max-frequency = <32000000>;
+				status = "okay";
+			};
+		};
+	};
+
+	__overrides__ {
+		ce = <&slb9670>,"reg:0",
+		     <0>,"!0=1";
+	};
+};

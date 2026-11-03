@@ -1,0 +1,71 @@
+// MCP23008 I/O expander at 0x21 — LED1 and BUZZER.
+//
+// The boards always carry an MCP23008 (8 lines). This overlay used to declare
+// "microchip,mcp23017" under the name mcp23017-leds, which made the driver use
+// the 16-bit register map (OLATA at 0x14) on a part whose registers end at
+// 0x0A. Both the compatible and the file name now say mcp23008.
+//
+// The node is deliberately named "mcp23008@21" as well: tb_gpio's
+// find_gpiochip() filters /dev/gpiochip* by looking for the literal substring
+// "mcp23008" anywhere in `udevadm info` output, which covers OF_NAME,
+// OF_FULLNAME and OF_COMPATIBLE. Without a match it returns None and
+// device_help prints "GPIONone" for LED1 and BUZZER.
+//
+// "brcm,bcm2835" — used on both families (bcm283x and bcm271x), the
+// family-neutral value upstream uses for every cross-family overlay.
+//
+// The default target-path aims at bcm283x, but every board passes i2c-path
+// explicitly in boot-config/cm*.txt — deliberately, so that one family's
+// default is not a silent trap for the other.
+
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "brcm,bcm2835";
+
+    frag0: fragment@0 {
+        target-path = "/soc/i2c@7e205000";
+        __overlay__ {
+            #address-cells = <1>;
+            #size-cells = <0>;
+
+            mcp23008_21: mcp23008@21 {
+                compatible = "microchip,mcp23008";
+                reg = <0x21>;
+                gpio-controller;
+                #gpio-cells = <2>;
+            };
+        };
+    };
+
+    fragment@1 {
+        target-path = "/";
+        __overlay__ {
+            leds {
+                compatible = "gpio-leds";
+
+                led_mcp_2: led_mcp_2 {
+                    label = "LED1";
+                    linux,default-trigger = "default-off";
+                    gpios = <&mcp23008_21 1 0>;
+                };
+
+                buzzer_mcp_6: buzzer_mcp_6 {
+                    label = "BUZZER";
+                    linux,default-trigger = "default-off";
+                    gpios = <&mcp23008_21 5 0>;
+                };
+            };
+        };
+    };
+
+    __overrides__ {
+        // "target-path" WITHOUT a ":0" suffix — ":<offset>" means an integer
+        // value at that offset (as in "reg:0" below), so on a string property
+        // it never replaced the path. Upstream does the same, e.g.
+        // hd44780-i2c-lcd-overlay.dts and i2c-buses.dtsi.
+        i2c-path = <&frag0>, "target-path";
+        addr     = <&mcp23008_21>, "reg:0";
+    };
+};

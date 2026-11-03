@@ -1,0 +1,35 @@
+#!/bin/sh
+set -e
+
+# Nothing is asked here. Loading the confmodule is what registers the purge
+# question from the templates file; debconf does that only for postinst.
+. /usr/share/debconf/confmodule
+
+OVERLAY_SRC=/usr/share/core/overlays
+OVERLAY_DIR=/boot/firmware/overlays
+
+# Copied on every configure, so an upgrade replaces the old files.
+install_overlays() {
+    if [ ! -d "$OVERLAY_DIR" ]; then
+        echo "core: $OVERLAY_DIR not found - is the boot partition mounted?" >&2
+        echo "core: overlays not installed; run 'dpkg-reconfigure core' once it is." >&2
+        return 0
+    fi
+
+    for src in "$OVERLAY_SRC"/*.dtbo; do
+        name="$(basename "$src")"
+        # Copy under a temporary name, then rename: a power cut mid-copy must
+        # not leave a truncated overlay that the firmware would try to load.
+        cp "$src" "$OVERLAY_DIR/.$name.new"
+        mv "$OVERLAY_DIR/.$name.new" "$OVERLAY_DIR/$name"
+    done
+    sync
+}
+
+case "$1" in
+    configure)
+        install_overlays
+        ;;
+esac
+
+exit 0

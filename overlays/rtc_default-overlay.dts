@@ -1,0 +1,63 @@
+/*
+ * RTC overlay — Maxim DS1338 or Microchip MCP7941x (+ onboard EEPROM),
+ * on a configurable I2C bus.
+ *
+ *   dtoverlay=rtc_default,i2c-path=<bus>,ds1338
+ *   dtoverlay=rtc_default,i2c-path=<bus>,mcp7941x
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "brcm,bcm2835";
+
+    frag0: fragment@0 {
+        target-path = "/soc/i2c@7e205000";
+        i2cbus: __overlay__ {
+            #address-cells = <1>;
+            #size-cells = <0>;
+            status = "okay";
+        };
+    };
+
+    fragment@1 {
+        target = <&i2cbus>;
+        __dormant__ {
+            #address-cells = <1>;
+            #size-cells = <0>;
+
+            ds1338: ds1338@68 {
+                compatible = "maxim,ds1338";
+                reg = <0x68>;
+                status = "okay";
+            };
+        };
+    };
+
+    fragment@2 {
+        target = <&i2cbus>;
+        __dormant__ {
+            #address-cells = <1>;
+            #size-cells = <0>;
+
+            mcp7941x: mcp7941x@6f {
+                compatible = "microchip,mcp7941x";
+                reg = <0x6f>;
+                status = "okay";
+            };
+
+            24c01@57 {
+                compatible = "at24,24c01";
+                reg = <0x57>;
+                status = "okay";
+            };
+        };
+    };
+
+    __overrides__ {
+        i2c-path = <&frag0>,"target-path";
+        ds1338   = <0>,"+1";
+        mcp7941x = <0>,"+2";
+    };
+};

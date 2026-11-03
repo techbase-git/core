@@ -1,0 +1,9 @@
+Template: core/purge-overlays
+Type: boolean
+Default: false
+Description: Delete the overlays from /boot/firmware/overlays?
+ Purging the package can also delete the overlays it installed:
+ ${overlays}
+ .
+ If config.txt still loads any of them, the device may lose that hardware
+ or fail to boot after the next restart. Answering no keeps the files.

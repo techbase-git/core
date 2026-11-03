@@ -1,0 +1,82 @@
+// SC16IS740 — external I2C UART (our second serial port, ttySC0).
+//
+// Equivalent of the stock sc16is750-i2c-overlay.dts, with two differences:
+//
+//  1. compatible = "nxp,sc16is740" instead of "...750". The driver picks the
+//     devtype from it: 750 has nr_gpio = 8, 740 has nr_gpio = 0
+//     (sc16is7xx.c:497-511). With nr_gpio = 0, sc16is7xx_setup_gpio_chip()
+//     returns early, so no gpiochip is registered at all. Our boards carry a
+//     physical 740 (HARDWARE.md §1), which has no GPIO pins — declaring it as
+//     a 750 created a phantom gpiochip under /sys/.../0-004d/gpio/.
+//     The stock overlay does not allow overriding compatible, hence this copy.
+//
+//  2. No #include "i2c-buses.dtsi" — we aim straight at target-path, without
+//     the fragments that enable i2c0mux (the bus is enabled by dtoverlay=i2c0
+//     in config.txt). As a side effect this drops the firmware's "invalid
+//     override value" message, emitted by the boolean "target?=0" clause in
+//     that file.
+//
+// The default target-path aims at bcm283x, but every board passes i2c-path
+// explicitly in boot-config/cm*.txt — deliberately, so that one family's
+// default is not a silent trap for the other (see the mcp23017-leds history).
+
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "brcm,bcm2835";
+
+    frag0: fragment@0 {
+        target-path = "/soc/i2c@7e205000";
+        __overlay__ {
+            #address-cells = <1>;
+            #size-cells = <0>;
+
+            sc16is740: sc16is740@4d {
+                compatible = "nxp,sc16is740";
+                reg = <0x4d>;
+                clocks = <&sc16is740_clk>;
+                interrupt-parent = <&gpio>;
+                interrupts = <16 2>;    /* IRQ_TYPE_EDGE_FALLING */
+                pinctrl-0 = <&int_pins>;
+                pinctrl-names = "default";
+                i2c-max-frequency = <400000>;
+                /* deliberately NO gpio-controller / #gpio-cells — 740 has no GPIO */
+            };
+        };
+    };
+
+    fragment@1 {
+        target = <&clocks>;
+        __overlay__ {
+            sc16is740_clk: sc16is740_i2c_clk@4d {
+                compatible = "fixed-clock";
+                #clock-cells = <0>;
+                clock-frequency = <14745600>;
+            };
+        };
+    };
+
+    fragment@2 {
+        target = <&gpio>;
+        __overlay__ {
+            int_pins: int_pins@10 {
+                brcm,pins = <16>;
+                brcm,function = <0>;    /* in */
+                brcm,pull = <0>;        /* none */
+            };
+        };
+    };
+
+    __overrides__ {
+        int_pin  = <&sc16is740>,"interrupts:0",
+                   <&int_pins>,"brcm,pins:0",
+                   <&int_pins>,"reg:0";
+        addr     = <&sc16is740>,"reg:0",
+                   <&sc16is740_clk>,"name";
+        xtal     = <&sc16is740_clk>,"clock-frequency:0";
+        /* "target-path" WITHOUT a ":0" suffix — ":<offset>" means an integer
+           value and does not replace a string (see mcp23017-leds). */
+        i2c-path = <&frag0>,"target-path";
+    };
+};

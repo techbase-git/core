@@ -1,0 +1,76 @@
+// MCP23008 I/O expander at 0x20 — the DIO1..DIO4 lines.
+//
+// Local replacement for the stock mcp23017 overlay, differing in two ways:
+//
+//  1. compatible = "microchip,mcp23008". The boards always carry an MCP23008
+//     (8 lines, registers up to 0x0A). The stock overlay declares
+//     "microchip,mcp23017", which makes the driver use the 16-bit register map
+//     on a part that does not have it. DIO1..DIO4 use offsets 0-7, so they fit
+//     the 8 lines an MCP23008 provides.
+//
+//  2. Node named "mcp23008@20" instead of the stock "mcp@20". tb_gpio's
+//     find_gpiochip() filters /dev/gpiochip* by looking for the literal
+//     substring "mcp23008" anywhere in `udevadm info` output, which covers
+//     OF_NAME, OF_FULLNAME and OF_COMPATIBLE. With the stock name and
+//     compatible nothing matched, find_gpiochip returned None, and device_help
+//     printed "GPIONone" for every DIO port.
+//
+// Interrupt setup (pin, mirror, interrupt-controller) is copied 1:1 from the
+// stock overlay. microchip,irq-mirror has no effect on an MCP23008 (it has a
+// single INT pin and no MIRROR bit in IOCON), but the stock overlay applies it
+// in mcp23008 mode too, so it is kept for parity.
+//
+// Usage (see boot-config/cm4.txt):
+//   dtoverlay=mcp23008-i2c,addr=0x20,gpiopin=6,i2c-path=/soc/i2c@7e205000
+
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "brcm,bcm2835";
+
+    frag0: fragment@0 {
+        target-path = "/soc/i2c@7e205000";
+        __overlay__ {
+            #address-cells = <1>;
+            #size-cells = <0>;
+
+            mcp23008_20: mcp23008@20 {
+                compatible = "microchip,mcp23008";
+                reg = <0x20>;
+                gpio-controller;
+                #gpio-cells = <2>;
+                #interrupt-cells = <2>;
+                interrupt-controller;
+                microchip,irq-mirror;
+                interrupt-parent = <&gpio>;
+                interrupts = <6 2>;     /* IRQ_TYPE_EDGE_FALLING */
+                pinctrl-names = "default";
+                pinctrl-0 = <&mcp23008_pins>;
+                status = "okay";
+            };
+        };
+    };
+
+    fragment@1 {
+        target = <&gpio>;
+        __overlay__ {
+            /* No unit address here, unlike the stock overlay's
+               mcp23017_pins@20 — there is only one such node, so it needs no
+               reg, and this avoids a dtc unit_address_vs_reg warning. */
+            mcp23008_pins: mcp23008_pins {
+                brcm,pins = <6>;
+                brcm,function = <0>;    /* in */
+            };
+        };
+    };
+
+    __overrides__ {
+        gpiopin  = <&mcp23008_pins>,"brcm,pins:0",
+                   <&mcp23008_20>,"interrupts:0";
+        addr     = <&mcp23008_20>,"reg:0";
+        /* "target-path" WITHOUT a ":0" suffix — ":<offset>" means an integer
+           value and would not replace a string (see mcp23017-leds). */
+        i2c-path = <&frag0>,"target-path";
+    };
+};

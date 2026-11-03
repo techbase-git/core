@@ -1,0 +1,28 @@
+/dts-v1/;
+/plugin/;
+
+/*
+ * emmc-arasan overlay (CM3 / BCM2837)
+ *
+ * Make the Arasan/SDHCI controller (mmc@7e300000) appear as mmc0 and demote
+ * the SDHOST controller (mmc@7e202000) to mmc1.
+ *
+ * Use together with `dtoverlay=mmc`, which routes the SD/eMMC lines to the
+ * Arasan controller. The Arasan path uses DMA and reads the eMMC reliably
+ * (as the firmware and Linux do), whereas the SDHOST PIO FIFO stalls on some
+ * Samsung eMMC parts (AJTD4R / 8GTF4R) under U-Boot's simple driver.
+ *
+ * Renumbering to mmc0 makes U-Boot's environment and boot logic (all keyed to
+ * mmc 0) work unchanged with the shared bcm283x binary, and keeps the eMMC as
+ * mmcblk0 in Linux so root=/dev/mmcblk0pN stays correct.
+ */
+
+/ {
+	fragment@0 {
+		target-path = "/aliases";
+		__overlay__ {
+			mmc0 = "/soc/mmc@7e300000";
+			mmc1 = "/soc/mmc@7e202000";
+		};
+	};
+};

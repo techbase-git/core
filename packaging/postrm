@@ -1,0 +1,62 @@
+#!/bin/sh
+set -e
+
+# Sourcing the confmodule re-runs this script under debconf, so it has to
+# happen before anything else. debconf may be gone by the time of a purge.
+USE_DEBCONF=no
+if [ "$1" = purge ] && [ -e /usr/share/debconf/confmodule ]; then
+    . /usr/share/debconf/confmodule
+    USE_DEBCONF=yes
+fi
+
+OVERLAY_DIR=/boot/firmware/overlays
+# The list is fixed here because the package files are already gone when
+# postrm runs.
+OVERLAYS="@OVERLAYS@"
+
+# "remove" leaves the overlays in place: config.txt may still load them.
+#
+# "purge" asks first. Where debconf cannot ask (DEBIAN_FRONTEND=noninteractive)
+# the default answer, no, keeps them.
+purge_overlays() {
+    [ -d "$OVERLAY_DIR" ] || return 0
+
+    if [ "$USE_DEBCONF" != yes ]; then
+        echo "core: debconf is not available to ask, overlays kept in $OVERLAY_DIR"
+        return 0
+    fi
+
+    list=""
+    for name in $OVERLAYS; do
+        list="$list $name.dtbo"
+    done
+    # Any debconf failure ends in keeping the files, never in a failed purge.
+    db_subst core/purge-overlays overlays "${list# }" || true
+    # Ask on every purge, even if the question was answered before.
+    db_fset core/purge-overlays seen false || true
+    db_input high core/purge-overlays || true
+    db_go || true
+    RET=false
+    db_get core/purge-overlays || true
+
+    if [ "$RET" != true ]; then
+        echo "core: overlays kept in $OVERLAY_DIR"
+        return 0
+    fi
+
+    for name in $OVERLAYS; do
+        rm -f "$OVERLAY_DIR/$name.dtbo"
+    done
+    echo "core: deleted from $OVERLAY_DIR:$list"
+}
+
+case "$1" in
+    purge)
+        purge_overlays
+        if [ "$USE_DEBCONF" = yes ]; then
+            db_purge || true
+        fi
+        ;;
+esac
+
+exit 0

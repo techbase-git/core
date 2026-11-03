@@ -1,0 +1,16 @@
+Package: core
+Version: @VERSION@
+Section: kernel
+Priority: optional
+Architecture: all
+Depends: debconf (>= 0.5) | debconf-2.0
+Maintainer: core contributors <techbasegit@gmail.com>
+Homepage: https://github.com/@REPO@
+Description: Device tree overlays for the carrier-board peripherals
+ Installs the overlays for the peripherals of the CM3, CM4, CM4S and CM5
+ carrier boards (ADC, CAN, TPM, RTC, LEDs, I/O expanders, the SC16IS740
+ serial port) and the boot-related fixes for CM3 and CM5 into
+ /boot/firmware/overlays.
+ .
+ It does not enable any of them. Which overlays a board loads is decided by
+ config.txt, and this package leaves config.txt alone.

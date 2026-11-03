@@ -1,0 +1,82 @@
+name: release
+
+# Tagging a version is what produces a release:
+#   git tag v1.0.0 && git push origin v1.0.0
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  deb:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Derive version from tag
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Check shell syntax
+        run: |
+          sh -n packaging/postinst
+          sh -n packaging/postrm
+          bash -n packaging/build-deb.sh
+
+      - name: Install dtc
+        run: sudo apt-get install -y device-tree-compiler
+
+      - name: Check overlays against their sources
+        # The package ships the committed .dtbo files. Each must be exactly
+        # what its .dts compiles to, or the source no longer describes what
+        # the boards actually load.
+        run: |
+          tmp="$(mktemp -d)"
+          fail=0
+          for dtbo in overlays/*.dtbo; do
+            name="$(basename "$dtbo" .dtbo)"
+            src="overlays/$name-overlay.dts"
+            if [ ! -f "$src" ]; then
+              echo "$dtbo has no source $src"; fail=1; continue
+            fi
+            dtc -q -@ -I dts -O dtb -o "$tmp/$name.dtbo" "$src"
+            if ! cmp -s "$tmp/$name.dtbo" "$dtbo"; then
+              echo "$dtbo does not match $src"; fail=1
+            fi
+          done
+          for src in overlays/*-overlay.dts; do
+            name="$(basename "$src" -overlay.dts)"
+            [ -f "overlays/$name.dtbo" ] || { echo "$src has no $name.dtbo"; fail=1; }
+          done
+          exit "$fail"
+
+      - name: Build .deb
+        run: ./packaging/build-deb.sh "$VERSION" dist
+
+      - name: Inspect package
+        run: |
+          dpkg-deb --info dist/*.deb
+          dpkg-deb --contents dist/*.deb
+
+      - name: Verify package layout
+        run: |
+          tmp="$(mktemp -d)"
+          dpkg-deb --extract dist/*.deb "$tmp"
+          for dtbo in overlays/*.dtbo; do
+            test -f "$tmp/usr/share/core/overlays/$(basename "$dtbo")"
+          done
+          test -f "$tmp/usr/share/doc/core/copyright"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Re-running a workflow, or moving a tag, leaves a release that
+          # already exists. Uploading with --clobber makes the step repeatable.
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/*.deb --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" --generate-notes dist/*.deb
+          fi

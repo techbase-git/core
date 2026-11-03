@@ -1,0 +1,37 @@
+/*
+ * MCP3424 ADC on a configurable I2C bus.
+ *
+ *   CM3, CM4, CM4S: dtoverlay=adc_default,addr=0x6c,i2c-path=/soc/i2c@7e205000
+ *   CM5:            dtoverlay=adc_default,addr=0x6c,i2c-path=/axi/pcie@1000120000/rp1/i2c@88000
+ *
+ * Every board passes i2c-path explicitly, so the bcm283x default is never
+ * silently used on CM5.
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "brcm,bcm2835";
+
+    frag0: fragment@0 {
+        target-path = "/soc/i2c@7e205000";
+        __overlay__ {
+            #address-cells = <1>;
+            #size-cells = <0>;
+            status = "okay";
+
+            mcp3424: adc@6c {
+                compatible = "microchip,mcp3424";
+                reg = <0x6c>;
+                status = "okay";
+            };
+        };
+    };
+
+    __overrides__ {
+        addr     = <&mcp3424>,"reg:0";
+        /* No ":0" suffix: that means an integer and would not replace the string. */
+        i2c-path = <&frag0>,"target-path";
+    };
+};
