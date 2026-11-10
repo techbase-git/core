@@ -1,0 +1,37 @@
+// DS2482-100 1-Wire bridge at 0x18 on I2C0.
+//
+// No stock overlay exists for this chip. The ds2482 driver has no OF match
+// table: the DT node is matched by name ("maxim,ds2482" -> "ds2482"), but the
+// module is not loaded automatically, so it has to be listed in
+// /etc/modules-load.d.
+//
+// Usage:
+//   dtoverlay=ds2482-i2c,i2c-path=/soc/i2c@7e205000                   (CM3, CM4, CM4S)
+//   dtoverlay=ds2482-i2c,i2c-path=/axi/pcie@1000120000/rp1/i2c@88000  (CM5)
+
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "brcm,bcm2835";
+
+    frag0: fragment@0 {
+        target-path = "/soc/i2c@7e205000";
+        __overlay__ {
+            #address-cells = <1>;
+            #size-cells = <0>;
+
+            ds2482: ds2482@18 {
+                compatible = "maxim,ds2482";
+                reg = <0x18>;
+                status = "okay";
+            };
+        };
+    };
+
+    __overrides__ {
+        // "target-path" without ":0", the same as in mcp23008-i2c
+        i2c-path = <&frag0>,"target-path";
+        addr     = <&ds2482>,"reg:0";
+    };
+};

@@ -19,6 +19,7 @@ is decided by `config.txt`, and the package does not touch that file.
 | `rtc_default` | DS1338 or MCP7941x RTC |
 | `can_default` | MCP251x CAN controller on spi0.0 |
 | `tpm_default` | Infineon SLB9670 TPM 2.0 |
+| `ds2482-i2c` | DS2482-100 1-Wire bridge at 0x18, bus as parameter (needs module `ds2482` in `/etc/modules-load.d`) |
 | `i2c6-cm5` | enables RP1 `i2c6` on pins 38/39 and names it `i2c-0` (CM5) |
 | `emmc-arasan` | makes the Arasan controller `mmc0`, for eMMC boot (CM3) |
 | `disable-sdhci` | disables the SDHCI controller |
